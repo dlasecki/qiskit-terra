@@ -18,7 +18,7 @@ from numpy.testing import assert_raises
 from qiskit.algorithms.quantum_time_evolution.builders.implementations.trotterizations.trotter_mode_enum import (
     TrotterModeEnum,
 )
-from qiskit.algorithms.quantum_time_evolution.real.implementations.trotterization.trotter_qrte import (
+from qiskit.algorithms.quantum_time_evolution.real.implementations.trotterization.trotter_qrte_old import (
     TrotterQrte,
 )
 from qiskit.quantum_info import Statevector
@@ -300,7 +300,7 @@ class TestTrotterQrte(QiskitOpflowTestCase):
             gradient_params=[t_param],
         )
 
-        expected_gradient = {t_param: (4.7628567756419216e-12 + 0j)}
+        expected_gradient = {t_param: (4.729550084903167e-12 + 0j)}
         np.testing.assert_equal(gradient, expected_gradient)
 
     def test_trotter_qrte_gradient_summed_op_qdrift_t_param_theta(self):

@@ -26,55 +26,33 @@ from qiskit.algorithms.quantum_time_evolution.results.evolution_gradient_result 
 from qiskit.algorithms.quantum_time_evolution.results.evolution_result import EvolutionResult
 from qiskit.circuit import Parameter, ParameterExpression
 from qiskit.opflow import OperatorBase, StateFn, Gradient, commutator, SummedOp, PauliSumOp, PauliOp
-from qiskit.circuit.library import PauliEvolutionGate
-from qiskit.synthesis import ProductFormula, LieTrotter
 
 
 class TrotterQrte(Qrte):
-    def __init__(self, product_formula: ProductFormula = LieTrotter()):
-        """
-        Args:
-            synthesis: A synthesis strategy. The default synthesis is the Lie-Trotter product
-            formula with a single repetition.
-        """
-        self.product_formula = product_formula
+    def __init__(self, mode: TrotterModeEnum, reps: int = 1):
+        self._mode = mode
+        self._reps = reps
 
     def evolve(
         self,
-        operator,
+        hamiltonian: OperatorBase,
         time: float,
         initial_state: StateFn = None,
         observable: OperatorBase = None,
         t_param: Parameter = None,
         hamiltonian_value_dict=None,
     ) -> EvolutionResult:
-        """
-        Args:
-            operator (Pauli | PauliOp | SparsePauliOp | PauliSumOp | list):
-                The operator to evolve. Can also be provided as list of non-commuting
-                operators where the elements are sums of commuting operators.
-                For example: ``[XY + YX, ZZ + ZI + IZ, YY]``.
-            time: The evolution time.
-            initial_state: TODO.
-            observable: TODO.
-            t_param: TODO.
-            hamiltonian_value_dict: TODO
-        """
-
-        # question: add operator check as in pauli_evolution?
-        # question: why need t_param??
 
         hamiltonian = self._try_binding_params(hamiltonian, hamiltonian_value_dict)
         self._validate_input(initial_state, observable)
-        # the evolution gate
-        evolution_gate = PauliEvolutionGate(hamiltonian, time,
-                                            synthesis=self.product_formula).definition
 
-        # question: says return evolutiongate but here is with eval
+        trotter = TrotterizationFactory.build(self._mode, self._reps)
+        trotterized_evolution_op = trotter.build(time * hamiltonian)
+
         if initial_state is not None:
-            return (evolution_gate @ initial_state).eval()
+            return (trotterized_evolution_op @ initial_state).eval()
         if observable is not None:
-            return evolution_gate.adjoint() @ observable @ evolution_gate
+            return trotterized_evolution_op.adjoint() @ observable @ trotterized_evolution_op
 
     def _try_binding_params(self, hamiltonian, hamiltonian_value_dict):
         # PauliSumOp does not allow parametrized coefficients
