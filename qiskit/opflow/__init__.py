@@ -147,6 +147,7 @@ Utility functions
    commutator
    anti_commutator
    double_commutator
+   eval_observables
 
 
 Exceptions
@@ -179,6 +180,7 @@ from .state_fns import (
     SparseVectorStateFn,
 )
 from .list_ops import ListOp, SummedOp, ComposedOp, TensoredOp
+
 from .converters import (
     ConverterBase,
     CircuitSampler,
@@ -244,6 +246,7 @@ from .gradients import (
 
 # Exceptions
 from .exceptions import OpflowError
+from .aux_ops_evaluator import eval_observables
 
 __all__ = [
     # Operators
@@ -318,4 +321,5 @@ __all__ = [
     "commutator",
     "anti_commutator",
     "double_commutator",
+    "eval_observables",
 ]

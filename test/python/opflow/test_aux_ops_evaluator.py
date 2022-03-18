@@ -21,10 +21,18 @@ from ddt import ddt, data
 from qiskit.algorithms.list_or_dict import ListOrDict
 from qiskit.providers import BaseBackend, Backend
 from qiskit.quantum_info import Statevector
-from qiskit.algorithms import eval_observables
 from qiskit import BasicAer, QuantumCircuit
 from qiskit.circuit.library import EfficientSU2
-from qiskit.opflow import PauliSumOp, X, Z, I, ExpectationFactory, OperatorBase, ExpectationBase
+from qiskit.opflow import (
+    PauliSumOp,
+    X,
+    Z,
+    I,
+    ExpectationFactory,
+    OperatorBase,
+    ExpectationBase,
+    eval_observables,
+)
 from qiskit.utils import QuantumInstance, algorithm_globals
 
 
