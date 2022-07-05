@@ -26,7 +26,7 @@ from qiskit.circuit import Parameter
 from qiskit.algorithms.gibbs_state_preparation.gibbs_state_sampler import GibbsStateSampler
 from qiskit.opflow import Zero, X, SummedOp, Z, I
 
-
+# TODO test all backends and a quantum instance
 @ddt
 class TestGibbsStateSampler(QiskitAlgorithmsTestCase):
     """Tests GibbsState class."""
