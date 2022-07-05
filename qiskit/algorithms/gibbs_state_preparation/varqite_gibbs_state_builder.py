@@ -37,8 +37,9 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
         """
         Args:
             qite_algorithm: Variational Quantum Imaginary Time Evolution algorithm to be used for
-                            Gibbs State preparation.
+                Gibbs State preparation.
             backend: A backend of quantum instance to evaluate the circuits.
+
         Raises:
             ValueError: if an ansatz is defined on an odd number of qubits.
 
@@ -61,11 +62,13 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
     ) -> GibbsStateSampler:
         """
         Creates a Gibbs state from given parameters.
+
         Args:
             problem_hamiltonian: Hamiltonian that defines a desired Gibbs state.
             temperature: Temperature of a desired Gibbs state.
             problem_hamiltonian_param_dict: If a problem Hamiltonian is parametrized, a dictionary
-                                            that maps all of its parameters to certain values.
+                that maps all of its parameters to certain values.
+
         Returns:
             GibbsState object that includes a relevant quantum state functions as well as
             metadata.
@@ -93,7 +96,6 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
             backend=self._backend,
             ansatz=self._ansatz,
             ansatz_params_dict=None,  # TODO get from evolution result
-            ansatz_hamiltonian_gradients=None,  # TODO get from evolution result
             aux_registers=aux_registers,
         )
 
@@ -101,8 +103,10 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
         """This class operates of a purified Gibbs state which includes auxiliary registers not
         present in the original Hamiltonian. This method creates an extended Hamiltonian in the
         bigger space that includes identity operators on auxiliary registers.
+
         Args:
             hamiltonian: Hamiltonian to be extended to a bigger space.
+
         Returns:
             An extended Hamiltonian in a bigger space, with identity operators on auxiliary
             registers.
@@ -116,6 +120,7 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
     def _set_default_ansatz(self, problem_hamiltonian: OperatorBase) -> None:
         """
         Sets a default ansatz with default parameters for a Gibbs state preparation.
+
         Args:
             problem_hamiltonian: Hamiltonian that defines a desired Gibbs state.
         """

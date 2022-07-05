@@ -22,10 +22,12 @@ def build_ansatz(num_qubits: int, depth: int):
     ansatz. Together with parameter values constructed by the method build_init_ansatz_params_vals,
     it results in num_qubits/2 maximally entangled states, as expected by the VarQITE-based Gibbs
     state preparation algorithm.
+
     Args:
         num_qubits: Number of qubits for an ansatz. Should be the double of the number of qubits of
-                    a Hamiltonian that defines a desired Gibbs state.
+            a Hamiltonian that defines a desired Gibbs state.
         depth: Depth of an EfficientSU2 ansatz quantum circuit.
+
     Returns:
         A parametrized default ansatz for a VarQITE-based Gibbs state preparation algorithm.
     """
@@ -43,10 +45,12 @@ def build_init_ansatz_params_vals(num_qubits: int, depth: int) -> ndarray:
     Builds an array of default parameters for an ansatz constructed by the build_ansatz method.
     Together with that ansatz, it results in num_qubits/2 maximally entangled states, as expected
     by the VarQITE-based Gibbs state preparation algorithm.
+
     Args:
         num_qubits: Number of qubits for an ansatz. Should be the same as the number of qubits of
-                    a Hamiltonian that defines a desired Gibbs state.
+            a Hamiltonian that defines a desired Gibbs state.
         depth: Depth of an EfficientSU2 ansatz quantum circuit.
+
     Returns:
         An array of parameters of length 2 * num_qubits * (depth + 1).
     """

@@ -32,12 +32,14 @@ class GibbsStateBuilder:
     ) -> GibbsStateSampler:
         """
         Creates a Gibbs state from given parameters.
+
         Args:
             problem_hamiltonian: Hamiltonian that defines a desired Gibbs state.
             temperature: Temperature of a desired Gibbs state.
             problem_hamiltonian_param_dict: If a problem Hamiltonian is parametrized, a dictionary
-                                            that maps all of its parameters to certain values.
+                that maps all of its parameters to certain values.
+
         Returns: GibbsState object that includes a relevant quantum state functions as well as
-                metadata.
+            metadata.
         """
         raise NotImplementedError
