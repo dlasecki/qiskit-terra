@@ -14,9 +14,10 @@ import unittest
 
 import numpy as np
 
-from qiskit import Aer
+from qiskit import BasicAer
 from qiskit.algorithms.gibbs_state_preparation.ansatz_mes_validator import _build_n_mes
 from qiskit.quantum_info import Statevector
+from qiskit.utils import QuantumInstance
 from test.python.algorithms import QiskitAlgorithmsTestCase
 
 
@@ -26,7 +27,7 @@ class TestAnsatzMesValidator(QiskitAlgorithmsTestCase):
     def test_build_n_mes(self):
         """Test building 2 Maximally Entangled States."""
         num_states = 2
-        backend = Aer.get_backend("statevector_simulator")
+        backend = QuantumInstance(BasicAer.get_backend("statevector_simulator"))
         mes = _build_n_mes(num_states, backend)
         expected_mes = Statevector(
             [

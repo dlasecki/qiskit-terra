@@ -18,8 +18,9 @@ from numpy.typing import NDArray
 
 from qiskit.circuit import Parameter
 from qiskit.opflow import StateFn, OperatorBase, Gradient, CircuitStateFn, CircuitSampler
-from qiskit.providers import Backend, BaseBackend
+from qiskit.providers import Backend
 from qiskit.utils import QuantumInstance
+from qiskit.utils.backend_utils import is_aer_provider
 
 
 class GibbsStateSampler:
@@ -29,35 +30,52 @@ class GibbsStateSampler:
     def __init__(
         self,
         gibbs_state_function: StateFn,
-        hamiltonian: Optional[OperatorBase],
-        temperature: Optional[float],
-        backend: Union[Backend, BaseBackend, QuantumInstance],
+        hamiltonian: OperatorBase,
+        temperature: float,
         ansatz: Optional[OperatorBase] = None,
         ansatz_params_dict: Optional[Dict[Parameter, Union[complex, float]]] = None,
-        aux_registers: Set[int] = None,
+        aux_registers: Optional[Set[int]] = None,
+        quantum_instance: Optional[Union[Backend, QuantumInstance]] = None,
     ):
         """
         Args:
             gibbs_state_function: Quantum state function of a Gibbs state.
             hamiltonian: Hamiltonian used to build a Gibbs state.
             temperature: Temperature used to build a Gibbs state.
-            backend: A backend used for sampling circuit probabilities.
             ansatz: Ansatz that gave rise to a Gibbs state.
             ansatz_params_dict: Dictionary that maps ansatz parameters to values optimal for a
                 Gibbs state.
             aux_registers: Set of indices (0-indexed) of registers in an ansatz that are auxiliary,
                 i.e. they do not contain a Gibbs state. E.g. in VarQiteGibbsStateBuilder
                 the second half or registers is auxiliary.
+            quantum_instance: A quantum instance to evaluate the circuits.
         """
-        self._gibbs_state_function = gibbs_state_function
-        self._hamiltonian = hamiltonian
-        self._temperature = temperature
-        self._backend = backend
-        self._ansatz = ansatz
-        self._ansatz_params_dict = ansatz_params_dict
-        self._aux_registers = aux_registers
+        self.gibbs_state_function = gibbs_state_function
+        self.hamiltonian = hamiltonian
+        self.temperature = temperature
+        self.ansatz = ansatz
+        self.ansatz_params_dict = ansatz_params_dict
+        self.aux_registers = aux_registers
+        self._quantum_instance = None
+        self._circuit_sampler = None
+        if quantum_instance is not None:
+            self.quantum_instance = quantum_instance
 
-        self._circuit_sampler = CircuitSampler(backend=backend)
+    @property
+    def quantum_instance(self) -> Optional[QuantumInstance]:
+        """Returns quantum instance."""
+        return self._quantum_instance
+
+    @quantum_instance.setter
+    def quantum_instance(self, quantum_instance: Union[QuantumInstance, Backend]) -> None:
+        """Sets quantum_instance"""
+        if not isinstance(quantum_instance, QuantumInstance):
+            quantum_instance = QuantumInstance(quantum_instance)
+
+        self._quantum_instance = quantum_instance
+        self._circuit_sampler = CircuitSampler(
+            quantum_instance, param_qobj=is_aer_provider(quantum_instance.backend)
+        )
 
     def eval_gibbs_state_matrix(self):
         """Evaluates a Gibbs state matrix on a given backend. Note that this process is generally
@@ -71,8 +89,8 @@ class GibbsStateSampler:
         Returns:
             An array of samples probabilities.
         """
-        operator = CircuitStateFn(self._ansatz)
-        sampler = self._circuit_sampler.convert(operator, self._ansatz_params_dict)
+        operator = CircuitStateFn(self.ansatz)
+        sampler = self._circuit_sampler.convert(operator, self.ansatz_params_dict)
         amplitudes_with_aux_regs = sampler.eval().primitive
         probs = self._discard_aux_registers(amplitudes_with_aux_regs)
         return probs
@@ -95,20 +113,20 @@ class GibbsStateSampler:
         Raises:
             ValueError: If ansatz and ansatz_params_dict are not both provided.
         """
-        if not self._ansatz or not self._ansatz_params_dict:
+        if not self.ansatz or not self.ansatz_params_dict:
             raise ValueError(
                 "Both ansatz and ansatz_params_dict must be present in the class to compute "
                 "gradients."
             )
 
-        operator = CircuitStateFn(self._ansatz)
+        operator = CircuitStateFn(self.ansatz)
 
         gradient_amplitudes_with_aux_regs = Gradient(grad_method=gradient_method).gradient_wrapper(
-            operator, self._ansatz.ordered_parameters, backend=self._backend
+            operator, self.ansatz.ordered_parameters, backend=self.quantum_instance
         )
         # Get the values for the gradient of the sampling probabilities w.r.t. the Ansatz parameters
         gradient_amplitudes_with_aux_regs = gradient_amplitudes_with_aux_regs(
-            self._ansatz_params_dict.values()
+            self.ansatz_params_dict.values()
         )
         # TODO gradients of amplitudes or probabilities?
         state_grad = self._discard_aux_registers_gradients(gradient_amplitudes_with_aux_regs)
@@ -135,7 +153,7 @@ class GibbsStateSampler:
         Raises:
             ValueError: If a provided number of qubits for an ansatz is not even.
         """
-        kept_num_qubits = self._ansatz.num_qubits - len(self._aux_registers)
+        kept_num_qubits = self.ansatz.num_qubits - len(self.aux_registers)
 
         amplitudes = amplitudes_with_aux_regs.data
         amplitudes_qubit_labels_ints = amplitudes_with_aux_regs.indices
@@ -163,7 +181,7 @@ class GibbsStateSampler:
         while cnt:
             bit = label & 1
             label = label >> 1
-            if cnt2 not in self._aux_registers:
+            if cnt2 not in self.aux_registers:
                 reduced_label_bits.append(bit)
             cnt -= 1
             cnt2 += 1

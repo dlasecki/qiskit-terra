@@ -19,10 +19,11 @@ from qiskit.algorithms.gibbs_state_preparation.default_ansatz_builder import (
 from qiskit.algorithms.gibbs_state_preparation.gibbs_state_sampler import GibbsStateSampler
 from qiskit.algorithms.gibbs_state_preparation.gibbs_state_builder import GibbsStateBuilder
 from qiskit.circuit import Parameter
-from qiskit.opflow import OperatorBase, I
-from qiskit.providers import BaseBackend
+from qiskit.opflow import OperatorBase, I, CircuitSampler
+from qiskit.providers import Backend
 from qiskit.quantum_info import Statevector
 from qiskit.utils import QuantumInstance
+from qiskit.utils.backend_utils import is_aer_provider
 
 
 class VarQiteGibbsStateBuilder(GibbsStateBuilder):
@@ -32,22 +33,41 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
     def __init__(
         self,
         qite_algorithm,
-        backend: Union[BaseBackend, QuantumInstance],
+        quantum_instance: Optional[Union[Backend, QuantumInstance]] = None,
     ):
         """
         Args:
             qite_algorithm: Variational Quantum Imaginary Time Evolution algorithm to be used for
                 Gibbs State preparation.
-            backend: A backend of quantum instance to evaluate the circuits.
+            quantum_instance: A quantum instance to evaluate the circuits.
 
         Raises:
             ValueError: if an ansatz is defined on an odd number of qubits.
 
         """
         self._qite_algorithm = qite_algorithm
-        self._backend = backend
         self._ansatz = None
         self._ansatz_init_params_dict = None
+        self._quantum_instance = None
+        self._circuit_sampler = None
+        if quantum_instance is not None:
+            self.quantum_instance = quantum_instance
+
+    @property
+    def quantum_instance(self) -> Optional[QuantumInstance]:
+        """Returns quantum instance."""
+        return self._quantum_instance
+
+    @quantum_instance.setter
+    def quantum_instance(self, quantum_instance: Union[QuantumInstance, Backend]) -> None:
+        """Sets quantum_instance"""
+        if not isinstance(quantum_instance, QuantumInstance):
+            quantum_instance = QuantumInstance(quantum_instance)
+
+        self._quantum_instance = quantum_instance
+        self._circuit_sampler = CircuitSampler(
+            quantum_instance, param_qobj=is_aer_provider(quantum_instance.backend)
+        )
 
     def _evaluate_initial_ansatz(self) -> Statevector:
         """Binds initial parameters values to an ansatz and returns the result as a state vector."""
@@ -93,10 +113,10 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
             gibbs_state_function=gibbs_state_function,
             hamiltonian=problem_hamiltonian,
             temperature=temperature,
-            backend=self._backend,
             ansatz=self._ansatz,
-            ansatz_params_dict=None,  # TODO get from evolution result
+            ansatz_params_dict=None,
             aux_registers=aux_registers,
+            quantum_instance=self._quantum_instance,
         )
 
     def _extend_hamiltonian_to_aux_registers(self, hamiltonian: OperatorBase):

@@ -11,30 +11,34 @@
 # that they have been altered from the originals.
 """A module for calculating fidelity of an ansatz evaluated with provided parameter values and
 a maximally entangled state of a compatible size."""
-from typing import Union
+from typing import Union, Optional
 
 from qiskit import QuantumCircuit
 from qiskit.opflow import OperatorBase
-from qiskit.providers import BaseBackend
+from qiskit.providers import Backend
 from qiskit.quantum_info import Statevector, state_fidelity
 from qiskit.utils import QuantumInstance
 
 
 def calc_ansatz_mes_fidelity(
-    ansatz_n_mes: OperatorBase, backend: Union[BaseBackend, QuantumInstance], num_of_mes: int
+    ansatz_n_mes: OperatorBase,
+    num_of_mes: int,
+    quantum_instance: Optional[Union[Backend, QuantumInstance]],
 ) -> float:
     """Calculates fidelity between n exact Maximally Entangled States (MES) and bound ansatz."""
-    exact_n_mes = _build_n_mes(num_of_mes, backend)
+    exact_n_mes = _build_n_mes(num_of_mes, quantum_instance)
     return state_fidelity(exact_n_mes, ansatz_n_mes)
 
 
-def _build_n_mes(num_states: int, backend: Union[BaseBackend, QuantumInstance]) -> Statevector:
+def _build_n_mes(
+    num_states: int, quantum_instance: Optional[Union[Backend, QuantumInstance]] = None
+) -> Statevector:
     """Builds n Maximally Entangled States (MES) as state vectors exactly."""
     qc = _build_mes()
     for _ in range(num_states - 1):
         qc = qc.tensor(_build_mes())
 
-    return backend.run(qc).result().get_statevector()
+    return quantum_instance.run(qc).result().get_statevector()
 
 
 def _build_mes() -> QuantumCircuit:
