@@ -1,6 +1,6 @@
 [package]
 name = "qiskit-terra"
-version = "0.21.0"
+version = "0.22.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -29,7 +29,7 @@ version = "^0.15.0"
 features = ["rayon"]
 
 [dependencies.hashbrown]
-version = "0.12.1"
+version = "0.12.2"
 features = ["rayon"]
 
 [profile.release]
