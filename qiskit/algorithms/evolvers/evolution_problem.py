@@ -35,11 +35,11 @@ class EvolutionProblem:
         aux_operators: Optional[ListOrDict[OperatorBase]] = None,
         truncation_threshold: float = 1e-12,
         t_param: Optional[Parameter] = None,
-        hamiltonian_value_dict: Optional[Dict[Parameter, complex]] = None,
     ):
         """
         Args:
-            hamiltonian: The Hamiltonian under which to evolve the system.
+            hamiltonian: The Hamiltonian under which to evolve the system. It cannot be parametrized
+                unless it is a time parameter specified in ``t_param``.
             time: Total time of evolution.
             initial_state: The quantum state to be evolved for methods like Trotterization.
                 For variational time evolutions, where the evolution happens in an ansatz,
@@ -50,15 +50,12 @@ class EvolutionProblem:
                 Used when ``aux_operators`` is provided.
             t_param: Time parameter in case of a time-dependent Hamiltonian. This
                 free parameter must be within the ``hamiltonian``.
-            hamiltonian_value_dict: If the Hamiltonian contains free parameters, this
-                dictionary maps all these parameters to values.
 
         Raises:
             ValueError: If non-positive time of evolution is provided.
         """
 
         self.t_param = t_param
-        self.hamiltonian_value_dict = hamiltonian_value_dict
         self.hamiltonian = hamiltonian
         self.time = time
         self.initial_state = initial_state
@@ -84,26 +81,19 @@ class EvolutionProblem:
 
     def validate_params(self) -> None:
         """
-        Checks if all parameters present in the Hamiltonian are also present in the dictionary
-        that maps them to values.
+        Checks if Hamiltonian does not include parameters unless it is a time parameter specified
+        in ``t_param``.
 
         Raises:
-            ValueError: If Hamiltonian parameters cannot be bound with data provided.
+            ValueError: If Hamiltonian contains illegal parameters.
         """
         if isinstance(self.hamiltonian, OperatorBase):
-            t_param_set = set()
-            if self.t_param is not None:
-                t_param_set.add(self.t_param)
-            hamiltonian_dict_param_set = set()
-            if self.hamiltonian_value_dict is not None:
-                hamiltonian_dict_param_set = hamiltonian_dict_param_set.union(
-                    set(self.hamiltonian_value_dict.keys())
-                )
-            params_set = t_param_set.union(hamiltonian_dict_param_set)
-            hamiltonian_param_set = set(self.hamiltonian.parameters)
-
-            if hamiltonian_param_set != params_set:
+            hamiltonian_params = self.hamiltonian.parameters
+            if len(hamiltonian_params) > 1:
                 raise ValueError(
-                    f"Provided parameters {params_set} do not match Hamiltonian parameters "
-                    f"{hamiltonian_param_set}."
+                    f"Unbound parameters detected in the Hamiltonian: {hamiltonian_params}"
+                )
+            if len(hamiltonian_params) == 1 and list(hamiltonian_params)[0] != self.t_param:
+                raise ValueError(
+                    "Time parameter in the Hamiltonian does not match the ``t_param`` provided."
                 )

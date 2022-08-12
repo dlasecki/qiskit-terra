@@ -186,8 +186,6 @@ class TrotterQRTE(RealEvolver):
                 "TrotterQRTE only accepts PauliOp | "
                 f"PauliSumOp | SummedOp, {type(hamiltonian)} provided."
             )
-        if isinstance(hamiltonian, OperatorBase):
-            hamiltonian = hamiltonian.bind_parameters(evolution_problem.hamiltonian_value_dict)
         if isinstance(hamiltonian, SummedOp):
             hamiltonian = self._summed_op_to_pauli_sum_op(hamiltonian)
         # the evolution gate
@@ -221,7 +219,7 @@ class TrotterQRTE(RealEvolver):
         hamiltonian: SummedOp,
     ) -> Union[PauliSumOp, PauliOp]:
         """
-        Tries binding parameters in a Hamiltonian.
+        Converts ``SummedOp`` to ``PauliSumOp`` or ``PauliOp``.
 
         Args:
             hamiltonian: The Hamiltonian that defines an evolution.

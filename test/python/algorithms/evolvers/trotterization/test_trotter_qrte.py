@@ -175,25 +175,6 @@ class TestTrotterQRTE(QiskitOpflowTestCase):
         evolution_result = trotter_qrte.evolve(evolution_problem)
         np.testing.assert_equal(evolution_result.evolved_state.eval(), expected_state)
 
-    def test_trotter_qrte_trotter_two_qubits_with_params(self):
-        """Test for TrotterQRTE on two qubits with a parametrized Hamiltonian."""
-        # LieTrotter with 1 rep
-        initial_state = StateFn([1, 0, 0, 0])
-        w_param = Parameter("w")
-        u_param = Parameter("u")
-        params_dict = {w_param: 2.0, u_param: 3.0}
-        operator = w_param * (Z ^ Z) / 2.0 + (Z ^ I) + u_param * (I ^ Z) / 3.0
-        time = 1
-        evolution_problem = EvolutionProblem(
-            operator, time, initial_state, hamiltonian_value_dict=params_dict
-        )
-        expected_state = VectorStateFn(
-            Statevector([-0.9899925 - 0.14112001j, 0.0 + 0.0j, 0.0 + 0.0j, 0.0 + 0.0j], dims=(2, 2))
-        )
-        trotter_qrte = TrotterQRTE()
-        evolution_result = trotter_qrte.evolve(evolution_problem)
-        np.testing.assert_equal(evolution_result.evolved_state.eval(), expected_state)
-
     @data(
         (
             Zero,
@@ -220,9 +201,8 @@ class TestTrotterQRTE(QiskitOpflowTestCase):
         evolution_result = trotter_qrte.evolve(evolution_problem)
         np.testing.assert_equal(evolution_result.evolved_state.eval(), expected_state)
 
-    @data((Parameter("t"), {}), (None, {Parameter("x"): 2}), (None, None))
-    @unpack
-    def test_trotter_qrte_trotter_errors(self, t_param, hamiltonian_value_dict):
+    @data(Parameter("t"), None, None)
+    def test_trotter_qrte_trotter_errors(self, t_param):
         """Test TrotterQRTE with raising errors."""
         operator = X * Parameter("t") + Z
         initial_state = Zero
@@ -235,7 +215,6 @@ class TestTrotterQRTE(QiskitOpflowTestCase):
                 time,
                 initial_state,
                 t_param=t_param,
-                hamiltonian_value_dict=hamiltonian_value_dict,
             )
             _ = trotter_qrte.evolve(evolution_problem)
 
