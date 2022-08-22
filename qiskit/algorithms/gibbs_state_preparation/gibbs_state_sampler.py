@@ -77,11 +77,6 @@ class GibbsStateSampler:
             quantum_instance, param_qobj=is_aer_provider(quantum_instance.backend)
         )
 
-    def eval_gibbs_state_matrix(self):
-        """Evaluates a Gibbs state matrix on a given backend. Note that this process is generally
-        not efficient and should not be used in production settings."""
-        pass
-
     def sample(self) -> NDArray[Union[complex, float]]:  # calc p_qbm
         """
         Samples probabilities from a Gibbs state.
