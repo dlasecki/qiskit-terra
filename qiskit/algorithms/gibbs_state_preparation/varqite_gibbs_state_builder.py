@@ -12,6 +12,7 @@
 """Class for building Gibbs States using Quantum Imaginary Time Evolution algorithms."""
 from typing import Dict, Union, Optional
 
+from qiskit.algorithms import VarQITE, EvolutionProblem
 from qiskit.algorithms.gibbs_state_preparation.default_ansatz_builder import (
     build_ansatz,
     build_init_ansatz_params_vals,
@@ -32,7 +33,7 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
 
     def __init__(
         self,
-        qite_algorithm,
+        qite_algorithm: VarQITE,
         quantum_instance: Optional[Union[Backend, QuantumInstance]] = None,
     ):
         """
@@ -100,14 +101,12 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
 
         param_dict = {**self._ansatz_init_params_dict, **problem_hamiltonian_param_dict}
         extended_hamiltonian = self._extend_hamiltonian_to_aux_registers(problem_hamiltonian)
-        gibbs_state_function = self._qite_algorithm.evolve(
-            hamiltonian=extended_hamiltonian,
-            time=time,
-            initial_state=self._ansatz,
-            hamiltonian_value_dict=param_dict,
+        evolution_problem = EvolutionProblem(
+            hamiltonian=extended_hamiltonian, time=time, param_value_dict=param_dict
         )
+        gibbs_state_function = self._qite_algorithm.evolve(evolution_problem)
 
-        aux_registers = set(range(self._ansatz.num_qubits / 2, self._ansatz.num_qubits))
+        aux_registers = set(range(int(self._ansatz.num_qubits / 2), int(self._ansatz.num_qubits)))
 
         return GibbsStateSampler(
             gibbs_state_function=gibbs_state_function,

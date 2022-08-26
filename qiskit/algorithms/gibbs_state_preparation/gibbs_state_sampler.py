@@ -85,6 +85,7 @@ class GibbsStateSampler:
             An array of samples probabilities.
         """
         operator = CircuitStateFn(self.ansatz)
+        # TODO what if None?
         sampler = self._circuit_sampler.convert(operator, self.ansatz_params_dict)
         amplitudes_with_aux_regs = sampler.eval().primitive
         probs = self._discard_aux_registers(amplitudes_with_aux_regs)
