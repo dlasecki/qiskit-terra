@@ -13,16 +13,13 @@
 
 """The Iterative Quantum Phase Estimation Algorithm."""
 
-
-from typing import Optional, Union
 import numpy
-import qiskit
+
 from qiskit.circuit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.classicalregister import ClassicalRegister
-from qiskit.providers import Backend
-from qiskit.utils import QuantumInstance
 from .phase_estimator import PhaseEstimator
 from .phase_estimator import PhaseEstimatorResult
+from ...primitives import Sampler
 
 
 class IterativePhaseEstimation(PhaseEstimator):
@@ -38,22 +35,24 @@ class IterativePhaseEstimation(PhaseEstimator):
     def __init__(
         self,
         num_iterations: int,
-        quantum_instance: Optional[Union[QuantumInstance, Backend]] = None,
+        sampler: Sampler,
+        shots: int = None,
     ) -> None:
 
         """Args:
           num_iterations: The number of iterations (rounds) of the phase estimation to run.
-          quantum_instance: The quantum instance on which the circuit will be run.
+          sampler: The sampler primitive on which the circuit will be sampled.
+          shots: The number of shots to be used by a sampler. If ``None``, exact probabilities
+                will be calculated.
 
         Raises:
           ValueError: if num_iterations is not greater than zero.
         """
-        if isinstance(quantum_instance, Backend):
-            quantum_instance = QuantumInstance(quantum_instance)
-        self._quantum_instance = quantum_instance
         if num_iterations <= 0:
             raise ValueError("`num_iterations` must be greater than zero.")
-        self._num_iterations = num_iterations
+        self.num_iterations = num_iterations
+        self.sampler = sampler
+        self.shots = shots
 
     def construct_circuit(
         self,
@@ -61,7 +60,6 @@ class IterativePhaseEstimation(PhaseEstimator):
         state_preparation: QuantumCircuit,
         k: int,
         omega: float = 0,
-        measurement: bool = False,
     ) -> QuantumCircuit:
         """Construct the kth iteration Quantum Phase Estimation circuit.
 
@@ -69,20 +67,18 @@ class IterativePhaseEstimation(PhaseEstimator):
 
         Args:
             unitary: The circuit representing the unitary operator whose eigenvalue (via phase)
-                     will be measured.
+                 will be measured.
             state_preparation: The circuit that prepares the state whose eigenphase will be
-                     measured.  If this parameter is omitted, no preparation circuit
-                     will be run and input state will be the all-zero state in the
-                     computational basis.
+                 measured.  If this parameter is omitted, no preparation circuit
+                 will be run and input state will be the all-zero state in the
+                 computational basis.
             k: the iteration idx.
             omega: the feedback angle.
-            measurement: Boolean flag to indicate if measurement should
-                    be included in the circuit.
 
         Returns:
             QuantumCircuit: the quantum circuit per iteration
         """
-        k = self._num_iterations if k is None else k
+        k = self.num_iterations if k is None else k
         # The auxiliary (phase measurement) qubit
         phase_register = QuantumRegister(1, name="a")
         eigenstate_register = QuantumRegister(unitary.num_qubits, name="q")
@@ -103,10 +99,10 @@ class IterativePhaseEstimation(PhaseEstimator):
         qc.p(omega, phase_register[0])
         # hadamard on phase_register[0]
         qc.h(phase_register[0])
-        if measurement:
-            c = ClassicalRegister(1, name="c")
-            qc.add_register(c)
-            qc.measure(phase_register, c)
+
+        c = ClassicalRegister(1, name="c")
+        qc.add_register(c)
+        qc.measure(phase_register, c)
         return qc
 
     def _estimate_phase_iteratively(self, unitary, state_preparation):
@@ -115,28 +111,12 @@ class IterativePhaseEstimation(PhaseEstimator):
         """
         omega_coef = 0
         # k runs from the number of iterations back to 1
-        for k in range(self._num_iterations, 0, -1):
+        for k in range(self.num_iterations, 0, -1):
             omega_coef /= 2
-            if self._quantum_instance.is_statevector:
-                qc = self.construct_circuit(
-                    unitary, state_preparation, k, -2 * numpy.pi * omega_coef, measurement=False
-                )
-                result = self._quantum_instance.execute(qc)
-                complete_state_vec = result.get_statevector(qc)
-                ancilla_density_mat = qiskit.quantum_info.partial_trace(
-                    complete_state_vec, range(unitary.num_qubits)
-                )
-                ancilla_density_mat_diag = numpy.diag(ancilla_density_mat)
-                max_amplitude = max(
-                    ancilla_density_mat_diag.min(), ancilla_density_mat_diag.max(), key=abs
-                )
-                x = numpy.where(ancilla_density_mat_diag == max_amplitude)[0][0]
-            else:
-                qc = self.construct_circuit(
-                    unitary, state_preparation, k, -2 * numpy.pi * omega_coef, measurement=True
-                )
-                measurements = self._quantum_instance.execute(qc).get_counts(qc)
-                x = 1 if measurements.get("1", 0) > measurements.get("0", 0) else 0
+            qc = self.construct_circuit(unitary, state_preparation, k, -2 * numpy.pi * omega_coef)
+            sampler_job = self.sampler.run([qc], shots=self.shots)
+            result = sampler_job.result().quasi_dists[0]
+            x = 1 if result.get(1, 0) > result.get(0, 0) else 0
             omega_coef = omega_coef + x / 2
         return omega_coef
 
@@ -161,7 +141,7 @@ class IterativePhaseEstimation(PhaseEstimator):
 
         phase = self._estimate_phase_iteratively(unitary, state_preparation)
 
-        return IterativePhaseEstimationResult(self._num_iterations, phase)
+        return IterativePhaseEstimationResult(self.num_iterations, phase)
 
 
 class IterativePhaseEstimationResult(PhaseEstimatorResult):
