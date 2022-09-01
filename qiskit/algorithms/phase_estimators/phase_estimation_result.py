@@ -11,7 +11,7 @@
 # that they have been altered from the originals.
 
 """Result of running PhaseEstimation"""
-
+import math
 from typing import Dict, Union
 import numpy
 
@@ -89,7 +89,10 @@ class PhaseEstimationResult(PhaseEstimatorResult):
         to the bit string with the highesest probability. This is the most likely phase.
         """
         if isinstance(self.phases, dict):
-            binary_phase_string = max(self.phases, key=self.phases.get)
+            bitstring_len = math.ceil(math.log2(len(self.phases)))
+            binary_phase_string = _get_bitstring(
+                bitstring_len, max(self.phases, key=self.phases.get)
+            )
         else:
             # numpy.argmax ignores complex part of number. But, we take abs anyway
             idx = numpy.argmax(abs(self.phases))
@@ -117,32 +120,30 @@ class PhaseEstimationResult(PhaseEstimatorResult):
         Returns:
             A filtered dict of phases (keys) and frequencies (values).
         """
-        if isinstance(self.phases, dict):
-            counts = self.phases
-            if as_float:
-                phases = {
-                    _bit_string_to_phase(k): counts[k] for k in counts.keys() if counts[k] > cutoff
-                }
-            else:
-                phases = {k: counts[k] for k in counts.keys() if counts[k] > cutoff}
+        counts = self.phases
+        bitstring_len = math.ceil(math.log2(len(self.phases)))
 
+        if as_float:
+            phases = {
+                _bit_string_to_phase(_get_bitstring(bitstring_len, k)): counts[k]
+                for k in counts.keys()
+                if counts[k] > cutoff
+            }
         else:
-            phases = {}
-            for idx, amplitude in enumerate(self.phases):
-                if amplitude > cutoff:
-                    # Each index corresponds to a computational basis state with the LSB rightmost.
-                    # But, we chose to apply the unitaries such that the phase is recorded
-                    # in reverse order. So, we reverse the bitstrings here.
-                    binary_phase_string = numpy.binary_repr(idx, self._num_evaluation_qubits)[::-1]
-                    if as_float:
-                        _key = _bit_string_to_phase(binary_phase_string)
-                    else:
-                        _key = binary_phase_string
-                    phases[_key] = amplitude
-
+            phases = {
+                _get_bitstring(bitstring_len, k): counts[k]
+                for k in counts.keys()
+                if counts[k] > cutoff
+            }
             phases = _sort_phases(phases)
 
         return phases
+
+
+def _get_bitstring(length: int, number: int) -> str:
+    unpadded_bitstring = "{0:b}".format(number)[::-1]
+    padding = "0" * (length - len(unpadded_bitstring))
+    return unpadded_bitstring + padding
 
 
 def _bit_string_to_phase(binary_string: str) -> float:
