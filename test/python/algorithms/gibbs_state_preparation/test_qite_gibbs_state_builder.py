@@ -14,16 +14,16 @@ import unittest
 
 import numpy as np
 
-from qiskit import BasicAer
 from qiskit.algorithms import VarQITE
-from qiskit.algorithms.evolvers.variational import ImaginaryMcLachlanPrinciple
+from qiskit.algorithms.time_evolvers.variational import ImaginaryMcLachlanPrinciple
 from qiskit.algorithms.gibbs_state_preparation.varqite_gibbs_state_builder import (
     VarQiteGibbsStateBuilder,
 )
-from qiskit.utils import QuantumInstance, algorithm_globals
+from qiskit.primitives import Sampler
+from qiskit.quantum_info import Pauli
+from qiskit.utils import algorithm_globals
 from test.python.algorithms import QiskitAlgorithmsTestCase
 from qiskit.circuit.library import EfficientSU2
-from qiskit.opflow import X
 
 
 class TestQiteGibbsStateBuilder(QiskitAlgorithmsTestCase):
@@ -33,27 +33,13 @@ class TestQiteGibbsStateBuilder(QiskitAlgorithmsTestCase):
         super().setUp()
         self.seed = 11
         np.random.seed(self.seed)
-        backend_statevector = BasicAer.get_backend("statevector_simulator")
-        backend_qasm = BasicAer.get_backend("qasm_simulator")
-        self.quantum_instance = QuantumInstance(
-            backend=backend_statevector,
-            shots=1,
-            seed_simulator=self.seed,
-            seed_transpiler=self.seed,
-        )
-        self.quantum_instance_qasm = QuantumInstance(
-            backend=backend_qasm,
-            shots=40,
-            seed_simulator=self.seed,
-            seed_transpiler=self.seed,
-        )
-        self.backends_dict = {
-            "qi_qasm": self.quantum_instance_qasm,
-            "b_sv": backend_statevector,
-            "qi_sv": self.quantum_instance,
-        }
 
-        self.backends_names = ["qi_qasm", "b_sv", "qi_sv"]
+        self.sampler = Sampler()
+        self.sampler_shots = Sampler(options={"seed": self.seed, "shots": 40})
+
+        self.samplers_dict = {"sampler": self.sampler, "sampler_shots": self.sampler_shots}
+
+        self.sampler_names = ["sampler", "sampler_shots"]
 
     def test_build(self):
         """Build test."""
@@ -62,12 +48,12 @@ class TestQiteGibbsStateBuilder(QiskitAlgorithmsTestCase):
         init_param_values = np.zeros(len(ansatz.ordered_parameters))
         param_dict = dict(zip(ansatz.parameters, init_param_values))
 
-        hamiltonian = X
+        hamiltonian = Pauli("X")
         temperature = 12
 
         var_princip = ImaginaryMcLachlanPrinciple()
 
-        # no backend given so matrix multiplication will be used
+        # no sampler given so matrix multiplication will be used
         qite_algorithm = VarQITE(ansatz, var_princip, init_param_values, num_timesteps=5)
 
         expected_parameter_values = [
@@ -89,12 +75,12 @@ class TestQiteGibbsStateBuilder(QiskitAlgorithmsTestCase):
             1.94753553277173e-16,
         ]
 
-        for backend_name in self.backends_names:
-            with self.subTest(msg=f"Test {backend_name} backend."):
+        for sampler_name in self.sampler_names:
+            with self.subTest(msg=f"Test {sampler_name} sampler."):
                 algorithm_globals.random_seed = self.seed
-                backend = self.backends_dict[backend_name]
+                sampler = self.samplers_dict[sampler_name]
 
-                gibbs_state_builder = VarQiteGibbsStateBuilder(qite_algorithm, backend)
+                gibbs_state_builder = VarQiteGibbsStateBuilder(sampler, qite_algorithm)
                 gibbs_state = gibbs_state_builder.build(hamiltonian, temperature, param_dict)
                 parameter_values = gibbs_state.gibbs_state_function.evolved_state.data[0][0].params
 

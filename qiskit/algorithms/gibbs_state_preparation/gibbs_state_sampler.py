@@ -11,16 +11,17 @@
 # that they have been altered from the originals.
 """Class representing a quantum state of a Gibbs State along with metadata and gradient
 calculation methods."""
-from typing import Optional, Union, Dict, Set
-
+from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
+from qiskit import QuantumCircuit
+from qiskit.algorithms import AlgorithmError
+from qiskit.algorithms.gradients import BaseSamplerGradient, ParamShiftSamplerGradient
 from qiskit.circuit import Parameter
-from qiskit.opflow import StateFn, OperatorBase, Gradient, CircuitStateFn, CircuitSampler
-from qiskit.providers import Backend
-from qiskit.utils import QuantumInstance
-from qiskit.utils.backend_utils import is_aer_provider
+from qiskit.opflow import PauliSumOp
+from qiskit.primitives import BaseSampler
+from qiskit.quantum_info.operators.base_operator import BaseOperator
 
 
 class GibbsStateSampler:
@@ -29,13 +30,13 @@ class GibbsStateSampler:
 
     def __init__(
         self,
-        gibbs_state_function: StateFn,
-        hamiltonian: OperatorBase,
+        sampler: BaseSampler,
+        gibbs_state_function: QuantumCircuit,
+        hamiltonian: BaseOperator | PauliSumOp,
         temperature: float,
-        ansatz: Optional[OperatorBase] = None,
-        ansatz_params_dict: Optional[Dict[Parameter, Union[complex, float]]] = None,
-        aux_registers: Optional[Set[int]] = None,
-        quantum_instance: Optional[Union[Backend, QuantumInstance]] = None,
+        ansatz: QuantumCircuit | None = None,
+        ansatz_params_dict: dict[Parameter, complex | float] | None = None,
+        aux_registers: set[int] | None = None,
     ):
         """
         Args:
@@ -48,53 +49,37 @@ class GibbsStateSampler:
             aux_registers: Set of indices (0-indexed) of registers in an ansatz that are auxiliary,
                 i.e. they do not contain a Gibbs state. E.g. in VarQiteGibbsStateBuilder
                 the second half or registers is auxiliary.
-            quantum_instance: A quantum instance to evaluate the circuits.
         """
+        self.sampler = sampler
         self.gibbs_state_function = gibbs_state_function
         self.hamiltonian = hamiltonian
         self.temperature = temperature
         self.ansatz = ansatz
         self.ansatz_params_dict = ansatz_params_dict
         self.aux_registers = aux_registers
-        self._quantum_instance = None
-        self._circuit_sampler = None
-        if quantum_instance is not None:
-            self.quantum_instance = quantum_instance
 
-    @property
-    def quantum_instance(self) -> Optional[QuantumInstance]:
-        """Returns quantum instance."""
-        return self._quantum_instance
-
-    @quantum_instance.setter
-    def quantum_instance(self, quantum_instance: Union[QuantumInstance, Backend]) -> None:
-        """Sets quantum_instance"""
-        if not isinstance(quantum_instance, QuantumInstance):
-            quantum_instance = QuantumInstance(quantum_instance)
-
-        self._quantum_instance = quantum_instance
-        self._circuit_sampler = CircuitSampler(
-            quantum_instance, param_qobj=is_aer_provider(quantum_instance.backend)
-        )
-
-    def sample(self) -> NDArray[Union[complex, float]]:  # calc p_qbm
+    def sample(self) -> NDArray[complex | float]:  # calc p_qbm
         """
         Samples probabilities from a Gibbs state.
 
         Returns:
             An array of samples probabilities.
         """
-        operator = CircuitStateFn(self.ansatz)
         # TODO what if None?
-        sampler = self._circuit_sampler.convert(operator, self.ansatz_params_dict)
-        amplitudes_with_aux_regs = sampler.eval().primitive
+        try:
+            amplitudes_with_aux_regs = self.sampler.run(
+                [self.ansatz], [list(self.ansatz_params_dict.values())]
+            ).result()[0]
+        except AlgorithmError as exc:
+            raise AlgorithmError("Estimator job failed.") from exc
+
         probs = self._discard_aux_registers(amplitudes_with_aux_regs)
         return probs
 
     def calc_ansatz_gradients(
         self,
-        gradient_method: str = "param_shift",
-    ) -> NDArray[NDArray[Union[complex, float]]]:
+        gradient: BaseSamplerGradient | None = None,
+    ) -> NDArray[NDArray[complex | float]]:
         """
         Calculates gradients of a Gibbs state w.r.t. desired gradient_params that parametrize the
         Gibbs state.
@@ -109,28 +94,27 @@ class GibbsStateSampler:
         Raises:
             ValueError: If ansatz and ansatz_params_dict are not both provided.
         """
+        if gradient is None:
+            gradient = ParamShiftSamplerGradient(self.sampler)
         if not self.ansatz or not self.ansatz_params_dict:
             raise ValueError(
                 "Both ansatz and ansatz_params_dict must be present in the class to compute "
                 "gradients."
             )
+        try:
+            gradient_amplitudes_with_aux_regs = gradient.run(
+                [self.ansatz], [list(self.ansatz_params_dict.values())]
+            ).result()[0]
+        except AlgorithmError as exc:
+            raise AlgorithmError("Estimator job failed.") from exc
 
-        operator = CircuitStateFn(self.ansatz)
-
-        gradient_amplitudes_with_aux_regs = Gradient(grad_method=gradient_method).gradient_wrapper(
-            operator, self.ansatz.ordered_parameters, backend=self.quantum_instance
-        )
-        # Get the values for the gradient of the sampling probabilities w.r.t. the Ansatz parameters
-        gradient_amplitudes_with_aux_regs = gradient_amplitudes_with_aux_regs(
-            self.ansatz_params_dict.values()
-        )
         # TODO gradients of amplitudes or probabilities?
         state_grad = self._discard_aux_registers_gradients(gradient_amplitudes_with_aux_regs)
         return state_grad
 
     def _discard_aux_registers(
-        self, amplitudes_with_aux_regs: NDArray[Union[complex, float]]
-    ) -> NDArray[Union[complex, float]]:
+        self, amplitudes_with_aux_regs: NDArray[complex | float]
+    ) -> NDArray[complex | float]:
         """
         Accepts an object with complex amplitudes sampled from a state with auxiliary
         registers and processes bit strings of qubit labels. For the default choice of an ansatz
@@ -187,8 +171,8 @@ class GibbsStateSampler:
         return reduced_label
 
     def _discard_aux_registers_gradients(
-        self, amplitudes_with_aux_regs: NDArray[Union[complex, float]]
-    ) -> NDArray[NDArray[Union[complex, float]]]:
+        self, amplitudes_with_aux_regs: NDArray[complex | float]
+    ) -> NDArray[NDArray[complex | float]]:
         """
         Accepts an object with complex amplitude gradients sampled from a state with auxiliary
         registers and processes bit strings of qubit labels. For the default choice of an

@@ -10,9 +10,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 """Class for building Gibbs States using Quantum Imaginary Time Evolution algorithms."""
-from typing import Dict, Union, Optional
-
-from qiskit.algorithms import VarQITE, EvolutionProblem
+from __future__ import annotations
+from qiskit.algorithms import VarQITE, TimeEvolutionProblem
 from qiskit.algorithms.gibbs_state_preparation.default_ansatz_builder import (
     build_ansatz,
     build_init_ansatz_params_vals,
@@ -20,11 +19,10 @@ from qiskit.algorithms.gibbs_state_preparation.default_ansatz_builder import (
 from qiskit.algorithms.gibbs_state_preparation.gibbs_state_sampler import GibbsStateSampler
 from qiskit.algorithms.gibbs_state_preparation.gibbs_state_builder import GibbsStateBuilder
 from qiskit.circuit import Parameter
-from qiskit.opflow import OperatorBase, I, CircuitSampler
-from qiskit.providers import Backend
+from qiskit.opflow import PauliSumOp
+from qiskit.primitives import BaseSampler
 from qiskit.quantum_info import Statevector
-from qiskit.utils import QuantumInstance
-from qiskit.utils.backend_utils import is_aer_provider
+from qiskit.quantum_info.operators.base_operator import BaseOperator
 
 
 class VarQiteGibbsStateBuilder(GibbsStateBuilder):
@@ -33,42 +31,22 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
 
     def __init__(
         self,
+        sampler: BaseSampler,
         qite_algorithm: VarQITE,
-        quantum_instance: Optional[Union[Backend, QuantumInstance]] = None,
     ):
         """
         Args:
             qite_algorithm: Variational Quantum Imaginary Time Evolution algorithm to be used for
                 Gibbs State preparation.
-            quantum_instance: A quantum instance to evaluate the circuits.
 
         Raises:
             ValueError: if an ansatz is defined on an odd number of qubits.
 
         """
+        self.sampler = sampler
         self._qite_algorithm = qite_algorithm
         self._ansatz = None
         self._ansatz_init_params_dict = None
-        self._quantum_instance = None
-        self._circuit_sampler = None
-        if quantum_instance is not None:
-            self.quantum_instance = quantum_instance
-
-    @property
-    def quantum_instance(self) -> Optional[QuantumInstance]:
-        """Returns quantum instance."""
-        return self._quantum_instance
-
-    @quantum_instance.setter
-    def quantum_instance(self, quantum_instance: Union[QuantumInstance, Backend]) -> None:
-        """Sets quantum_instance"""
-        if not isinstance(quantum_instance, QuantumInstance):
-            quantum_instance = QuantumInstance(quantum_instance)
-
-        self._quantum_instance = quantum_instance
-        self._circuit_sampler = CircuitSampler(
-            quantum_instance, param_qobj=is_aer_provider(quantum_instance.backend)
-        )
 
     def _evaluate_initial_ansatz(self) -> Statevector:
         """Binds initial parameters values to an ansatz and returns the result as a state vector."""
@@ -77,9 +55,9 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
 
     def build(
         self,
-        problem_hamiltonian: OperatorBase,
+        problem_hamiltonian: BaseOperator | PauliSumOp,
         temperature: float,
-        problem_hamiltonian_param_dict: Optional[Dict[Parameter, Union[complex, float]]] = None,
+        problem_hamiltonian_param_dict: dict[Parameter, complex | float] | None = None,
     ) -> GibbsStateSampler:
         """
         Creates a Gibbs state from given parameters.
@@ -101,24 +79,24 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
 
         param_dict = {**self._ansatz_init_params_dict, **problem_hamiltonian_param_dict}
         extended_hamiltonian = self._extend_hamiltonian_to_aux_registers(problem_hamiltonian)
-        evolution_problem = EvolutionProblem(
-            hamiltonian=extended_hamiltonian, time=time, param_value_dict=param_dict
+        evolution_problem = TimeEvolutionProblem(
+            hamiltonian=extended_hamiltonian, time=time, param_value_map=param_dict
         )
-        gibbs_state_function = self._qite_algorithm.evolve(evolution_problem)
+        gibbs_state_function = self._qite_algorithm.evolve(evolution_problem).evolved_state
 
         aux_registers = set(range(int(self._ansatz.num_qubits / 2), int(self._ansatz.num_qubits)))
 
         return GibbsStateSampler(
+            sampler=self.sampler,
             gibbs_state_function=gibbs_state_function,
             hamiltonian=problem_hamiltonian,
             temperature=temperature,
             ansatz=self._ansatz,
             ansatz_params_dict=None,
             aux_registers=aux_registers,
-            quantum_instance=self._quantum_instance,
         )
 
-    def _extend_hamiltonian_to_aux_registers(self, hamiltonian: OperatorBase):
+    def _extend_hamiltonian_to_aux_registers(self, hamiltonian: BaseOperator | PauliSumOp):
         """This class operates of a purified Gibbs state which includes auxiliary registers not
         present in the original Hamiltonian. This method creates an extended Hamiltonian in the
         bigger space that includes identity operators on auxiliary registers.
@@ -134,9 +112,9 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
         if hamiltonian.num_qubits != num_qubits / 2:
             raise ValueError("Mismatch between number of qubits in a Hamiltonian and in an ansatz.")
 
-        return hamiltonian ^ (I * (num_qubits / 2))
+        return hamiltonian ^ ("I" * (num_qubits / 2))
 
-    def _set_default_ansatz(self, problem_hamiltonian: OperatorBase) -> None:
+    def _set_default_ansatz(self, problem_hamiltonian: BaseOperator | PauliSumOp) -> None:
         """
         Sets a default ansatz with default parameters for a Gibbs state preparation.
 

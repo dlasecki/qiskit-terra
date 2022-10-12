@@ -15,16 +15,16 @@ import unittest
 from ddt import ddt, unpack, data
 import numpy as np
 
-from qiskit import BasicAer
+from qiskit import QuantumCircuit
 from qiskit.algorithms.gibbs_state_preparation.default_ansatz_builder import (
     build_ansatz,
     build_init_ansatz_params_vals,
 )
-from qiskit.utils import QuantumInstance
+from qiskit.primitives import Sampler
+from qiskit.quantum_info import Pauli, SparsePauliOp
 from test.python.algorithms import QiskitAlgorithmsTestCase
 from qiskit.circuit import Parameter
 from qiskit.algorithms.gibbs_state_preparation.gibbs_state_sampler import GibbsStateSampler
-from qiskit.opflow import Zero, X, SummedOp, Z, I
 
 # TODO test all backends and a quantum instance
 @ddt
@@ -33,28 +33,30 @@ class TestGibbsStateSampler(QiskitAlgorithmsTestCase):
 
     def test_gibbs_state_init(self):
         """Initialization test."""
-        gibbs_state_function = Zero
-        hamiltonian = X
+        gibbs_state_function = QuantumCircuit(1)
+        hamiltonian = Pauli("X")
         temperature = 42
+        sampler = Sampler()
 
-        backend = BasicAer.get_backend("qasm_simulator")
+        gibbs_state = GibbsStateSampler(sampler, gibbs_state_function, hamiltonian, temperature)
 
-        gibbs_state = GibbsStateSampler(
-            gibbs_state_function, hamiltonian, temperature, quantum_instance=backend
-        )
-
-        np.testing.assert_equal(gibbs_state.hamiltonian, X)
+        np.testing.assert_equal(gibbs_state.hamiltonian, Pauli("X"))
         np.testing.assert_equal(gibbs_state.temperature, 42)
 
     def test_sample(self):
         """Tests if Gibbs state probabilities are sampled correctly.."""
-        gibbs_state_function = Zero
-        hamiltonian = SummedOp([0.3 * Z ^ Z ^ I ^ I, 0.2 * Z ^ I ^ I ^ I, 0.5 * I ^ Z ^ I ^ I])
+        gibbs_state_function = QuantumCircuit(1)
+        hamiltonian = SparsePauliOp.from_list(
+            [
+                ("ZZII", 0.3),
+                ("ZIII", 0.2),
+                ("IZII", 0.5),
+            ]
+        )
         temperature = 42
 
-        backend = BasicAer.get_backend("qasm_simulator")
         seed = 170
-        qi = QuantumInstance(backend=backend, seed_simulator=seed, seed_transpiler=seed)
+        sampler = Sampler(options={"seed": seed, "shots": 1024})
 
         depth = 1
         num_qubits = 4
@@ -66,35 +68,36 @@ class TestGibbsStateSampler(QiskitAlgorithmsTestCase):
 
         params_dict = dict(zip(ansatz.ordered_parameters, param_values_init))
         gibbs_state = GibbsStateSampler(
+            sampler,
             gibbs_state_function,
             hamiltonian,
             temperature,
             ansatz,
             params_dict,
             aux_registers=aux_registers,
-            quantum_instance=qi,
         )
 
         probs = gibbs_state.sample()
         expected_probs = [0.222656, 0.25293, 0.25293, 0.271484]
-        #np.testing.assert_array_almost_equal(probs, expected_probs)
+        # np.testing.assert_array_almost_equal(probs, expected_probs)
         print(probs)
 
     @data([73, 9], [72, 8], [0, 0], [1, 1], [24, 0], [56, 0], [2, 2], [64, 16])
     @unpack
     def test_reduce_label(self, label, expected_label):
         """Tests if binary labels are reduced correctly by discarding aux registers."""
-        gibbs_state_function = Zero
-        hamiltonian = SummedOp(
+        gibbs_state_function = QuantumCircuit(1)
+        hamiltonian = SparsePauliOp.from_list(
             [
-                0.3 * Z ^ Z ^ I ^ I ^ I ^ I ^ I,
-                0.2 * Z ^ I ^ I ^ I ^ I ^ I ^ I,
-                0.5 * I ^ Z ^ I ^ I ^ I ^ I ^ I,
+                ("ZZIIIII", 0.3),
+                ("ZIIIIII", 0.2),
+                ("IZIIIII", 0.5),
             ]
         )
+
         temperature = 42
 
-        backend = BasicAer.get_backend("qasm_simulator")
+        sampler = Sampler(options={"shots": 1024})
 
         depth = 1
         num_qubits = 7
@@ -106,13 +109,13 @@ class TestGibbsStateSampler(QiskitAlgorithmsTestCase):
 
         params_dict = dict(zip(ansatz.ordered_parameters, param_values_init))
         gibbs_state = GibbsStateSampler(
+            sampler,
             gibbs_state_function,
             hamiltonian,
             temperature,
             ansatz,
             params_dict,
             aux_registers=aux_registers,
-            quantum_instance=backend,
         )
 
         label = 73
@@ -122,13 +125,18 @@ class TestGibbsStateSampler(QiskitAlgorithmsTestCase):
 
     def test_calc_ansatz_gradients(self):
         """Tests if ansatz gradients are calculated correctly."""
-        gibbs_state_function = Zero
-        hamiltonian = SummedOp([0.3 * Z ^ Z ^ I ^ I, 0.2 * Z ^ I ^ I ^ I, 0.5 * I ^ Z ^ I ^ I])
+        gibbs_state_function = QuantumCircuit(1)
+        hamiltonian = SparsePauliOp.from_list(
+            [
+                ("ZZII", 0.3),
+                ("ZIII", 0.2),
+                ("IZII", 0.5),
+            ]
+        )
         temperature = 42
 
-        backend = BasicAer.get_backend("qasm_simulator")
         seed = 170
-        qi = QuantumInstance(backend=backend, seed_simulator=seed, seed_transpiler=seed)
+        sampler = Sampler(options={"seed": seed, "shots": 1024})
 
         depth = 1
         num_qubits = 4
@@ -140,13 +148,13 @@ class TestGibbsStateSampler(QiskitAlgorithmsTestCase):
 
         params_dict = dict(zip(ansatz.ordered_parameters, param_values_init))
         gibbs_state = GibbsStateSampler(
+            sampler,
             gibbs_state_function,
             hamiltonian,
             temperature,
             ansatz,
             params_dict,
             aux_registers=aux_registers,
-            quantum_instance=qi,
         )
 
         gradient_method = "param_shift"
@@ -171,17 +179,23 @@ class TestGibbsStateSampler(QiskitAlgorithmsTestCase):
             [2.14576721e-04, 2.88486481e-05, 2.14576721e-06, 1.15394592e-04],
         ]
         for ind, gradient in enumerate(expected_gradients):
-            #np.testing.assert_array_almost_equal(gradients[ind], gradient)
+            # np.testing.assert_array_almost_equal(gradients[ind], gradient)
             print(gradients[ind])
 
     def test_calc_ansatz_gradients_missing_ansatz(self):
         """Tests if an expected error is raised when an ansatz is missing when calculating
         ansatz gradients."""
-        gibbs_state_function = Zero
-        hamiltonian = SummedOp([0.3 * Z ^ Z ^ I ^ I, 0.2 * Z ^ I ^ I ^ I, 0.5 * I ^ Z ^ I ^ I])
+        gibbs_state_function = QuantumCircuit(1)
+        hamiltonian = SparsePauliOp.from_list(
+            [
+                ("ZZII", 0.3),
+                ("ZIII", 0.2),
+                ("IZII", 0.5),
+            ]
+        )
         temperature = 42
 
-        backend = BasicAer.get_backend("qasm_simulator")
+        sampler = Sampler(options={"shots": 1024})
 
         param_values_init = np.zeros(2)
 
@@ -189,12 +203,12 @@ class TestGibbsStateSampler(QiskitAlgorithmsTestCase):
 
         params_dict = dict(zip([Parameter("a"), Parameter("b")], param_values_init))
         gibbs_state = GibbsStateSampler(
+            sampler,
             gibbs_state_function,
             hamiltonian,
             temperature,
             ansatz_params_dict=params_dict,
             aux_registers=aux_registers,
-            quantum_instance=backend,
         )
 
         gradient_method = "param_shift"

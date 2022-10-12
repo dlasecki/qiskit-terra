@@ -10,12 +10,13 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 """Interface for building Gibbs States."""
+from __future__ import annotations
 from abc import abstractmethod
-from typing import Union, Dict, Optional
 
 from qiskit.algorithms.gibbs_state_preparation.gibbs_state_sampler import GibbsStateSampler
 from qiskit.circuit import Parameter
-from qiskit.opflow import OperatorBase
+from qiskit.opflow import PauliSumOp
+from qiskit.quantum_info.operators.base_operator import BaseOperator
 
 
 class GibbsStateBuilder:
@@ -26,9 +27,9 @@ class GibbsStateBuilder:
     @abstractmethod
     def build(
         self,
-        problem_hamiltonian: OperatorBase,
+        problem_hamiltonian: BaseOperator | PauliSumOp,
         temperature: float,
-        problem_hamiltonian_param_dict: Optional[Dict[Parameter, Union[complex, float]]] = None,
+        problem_hamiltonian_param_dict: dict[Parameter, complex | float] | None = None,
     ) -> GibbsStateSampler:
         """
         Creates a Gibbs state from given parameters.
