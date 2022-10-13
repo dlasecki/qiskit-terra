@@ -37,6 +37,7 @@ def build_ansatz(num_qubits: int, depth: int):
     non_aux_registers = int(len(qr) / 2)
     for i in range(non_aux_registers):
         ansatz.cx(qr[i], qr[i + non_aux_registers])
+    ansatz.measure_all()
     return ansatz
 
 

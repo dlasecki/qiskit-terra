@@ -20,6 +20,7 @@ from qiskit.algorithms.gibbs_state_preparation.default_ansatz_builder import (
     build_ansatz,
     build_init_ansatz_params_vals,
 )
+from qiskit.algorithms.gradients import ParamShiftSamplerGradient
 from qiskit.primitives import Sampler
 from qiskit.quantum_info import Pauli, SparsePauliOp
 from test.python.algorithms import QiskitAlgorithmsTestCase
@@ -157,7 +158,7 @@ class TestGibbsStateSampler(QiskitAlgorithmsTestCase):
             aux_registers=aux_registers,
         )
 
-        gradient_method = "param_shift"
+        gradient_method = ParamShiftSamplerGradient(sampler)
         gradients = gibbs_state.calc_ansatz_gradients(gradient_method)
 
         expected_gradients = [

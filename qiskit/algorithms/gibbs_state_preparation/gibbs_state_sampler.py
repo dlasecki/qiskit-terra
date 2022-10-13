@@ -69,7 +69,7 @@ class GibbsStateSampler:
         try:
             amplitudes_with_aux_regs = self.sampler.run(
                 [self.ansatz], [list(self.ansatz_params_dict.values())]
-            ).result()[0]
+            ).result().quasi_dists[0]
         except AlgorithmError as exc:
             raise AlgorithmError("Estimator job failed.") from exc
 
@@ -104,7 +104,7 @@ class GibbsStateSampler:
         try:
             gradient_amplitudes_with_aux_regs = gradient.run(
                 [self.ansatz], [list(self.ansatz_params_dict.values())]
-            ).result()[0]
+            ).result().gradients[0]
         except AlgorithmError as exc:
             raise AlgorithmError("Estimator job failed.") from exc
 

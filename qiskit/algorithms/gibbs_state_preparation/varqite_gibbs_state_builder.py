@@ -11,13 +11,14 @@
 # that they have been altered from the originals.
 """Class for building Gibbs States using Quantum Imaginary Time Evolution algorithms."""
 from __future__ import annotations
-from qiskit.algorithms import VarQITE, TimeEvolutionProblem
+from qiskit.algorithms import TimeEvolutionProblem
 from qiskit.algorithms.gibbs_state_preparation.default_ansatz_builder import (
     build_ansatz,
     build_init_ansatz_params_vals,
 )
 from qiskit.algorithms.gibbs_state_preparation.gibbs_state_sampler import GibbsStateSampler
 from qiskit.algorithms.gibbs_state_preparation.gibbs_state_builder import GibbsStateBuilder
+from qiskit.algorithms.time_evolvers.variational.var_qite import VarQITE
 from qiskit.circuit import Parameter
 from qiskit.opflow import PauliSumOp
 from qiskit.primitives import BaseSampler
@@ -112,7 +113,7 @@ class VarQiteGibbsStateBuilder(GibbsStateBuilder):
         if hamiltonian.num_qubits != num_qubits / 2:
             raise ValueError("Mismatch between number of qubits in a Hamiltonian and in an ansatz.")
 
-        return hamiltonian ^ ("I" * (num_qubits / 2))
+        return hamiltonian ^ ("I" * int(num_qubits / 2))
 
     def _set_default_ansatz(self, problem_hamiltonian: BaseOperator | PauliSumOp) -> None:
         """

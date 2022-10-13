@@ -14,11 +14,11 @@ import unittest
 
 import numpy as np
 
-from qiskit.algorithms import VarQITE
 from qiskit.algorithms.time_evolvers.variational import ImaginaryMcLachlanPrinciple
 from qiskit.algorithms.gibbs_state_preparation.varqite_gibbs_state_builder import (
     VarQiteGibbsStateBuilder,
 )
+from qiskit.algorithms.time_evolvers.variational.var_qite import VarQITE
 from qiskit.primitives import Sampler
 from qiskit.quantum_info import Pauli
 from qiskit.utils import algorithm_globals
@@ -82,17 +82,13 @@ class TestQiteGibbsStateBuilder(QiskitAlgorithmsTestCase):
 
                 gibbs_state_builder = VarQiteGibbsStateBuilder(sampler, qite_algorithm)
                 gibbs_state = gibbs_state_builder.build(hamiltonian, temperature, param_dict)
-                parameter_values = gibbs_state.gibbs_state_function.evolved_state.data[0][0].params
+                parameter_values = gibbs_state.gibbs_state_function.data[0][0].params
 
                 expected_aux_registers = {1}
-                expected_aux_ops_evaluated = None
                 expected_hamiltonian = hamiltonian
                 expected_temperature = temperature
 
                 np.testing.assert_equal(expected_aux_registers, gibbs_state.aux_registers)
-                np.testing.assert_equal(
-                    expected_aux_ops_evaluated, gibbs_state.gibbs_state_function.aux_ops_evaluated
-                )
 
                 self._assert_parameter_vals(expected_parameter_values, parameter_values)
                 np.testing.assert_equal(expected_hamiltonian, gibbs_state.hamiltonian)
