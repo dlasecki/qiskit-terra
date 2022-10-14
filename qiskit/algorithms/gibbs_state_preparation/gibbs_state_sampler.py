@@ -65,15 +65,16 @@ class GibbsStateSampler:
         Returns:
             An array of samples probabilities.
         """
-        # TODO what if None?
         try:
-            amplitudes_with_aux_regs = self.sampler.run(
-                [self.ansatz], [list(self.ansatz_params_dict.values())]
-            ).result().quasi_dists[0]
+            probs_with_aux_regs = (
+                self.sampler.run([self.ansatz], [list(self.ansatz_params_dict.values())])
+                .result()
+                .quasi_dists[0]
+            )
         except AlgorithmError as exc:
             raise AlgorithmError("Estimator job failed.") from exc
 
-        probs = self._discard_aux_registers(amplitudes_with_aux_regs)
+        probs = self._discard_aux_registers(list(probs_with_aux_regs.values()))
         return probs
 
     def calc_ansatz_gradients(
@@ -85,7 +86,7 @@ class GibbsStateSampler:
         Gibbs state.
 
         Args:
-            gradient_method: A desired gradient method chosen from the Qiskit Gradient Framework.
+            gradient: A desired gradient method chosen from the Qiskit Gradient Framework.
 
         Returns:
             Calculated gradients with respect to each parameter indicated in gradient_params
@@ -102,48 +103,48 @@ class GibbsStateSampler:
                 "gradients."
             )
         try:
-            gradient_amplitudes_with_aux_regs = gradient.run(
-                [self.ansatz], [list(self.ansatz_params_dict.values())]
-            ).result().gradients[0]
+            gradients_with_aux_regs = (
+                gradient.run([self.ansatz], [list(self.ansatz_params_dict.values())])
+                .result()
+                .gradients[0]
+            )
+
         except AlgorithmError as exc:
             raise AlgorithmError("Estimator job failed.") from exc
 
-        # TODO gradients of amplitudes or probabilities?
-        state_grad = self._discard_aux_registers_gradients(gradient_amplitudes_with_aux_regs)
+        state_grad = self._discard_aux_registers_gradients(gradients_with_aux_regs)
         return state_grad
 
-    def _discard_aux_registers(
-        self, amplitudes_with_aux_regs: NDArray[complex | float]
-    ) -> NDArray[complex | float]:
+    # TODO move to the child class because it assumes a specific ansatz
+    def _discard_aux_registers(self, sampled_values: NDArray[float | complex]) -> NDArray[float]:
         """
-        Accepts an object with complex amplitudes sampled from a state with auxiliary
+        Accepts an object with probabilities/gradients sampled from a state with auxiliary
         registers and processes bit strings of qubit labels. For the default choice of an ansatz
-        in the GibbsStateBuilder, this method gets rid of the second half of qubits that
-        correspond to an auxiliary system. Then, it aggregates complex amplitudes and returns the
-        vector of probabilities. Indices of returned probability vector correspond to labels of a
-        reduced qubit state.
+        in the ``GibbsStateBuilder``, this method gets rid of the second half of qubits that
+        correspond to an auxiliary system. Then, it aggregates sampled probabilities/gradients and
+        returns the final vector of probabilities/gradients. Indices of returned
+        probability/gradient vector correspond to labels of a reduced qubit state.
 
         Args:
-            amplitudes_with_aux_regs: An array of amplitudes sampled from a Gibbs state circuit
+            sampled_values: An array of sampled probabilities/gradients from a Gibbs state circuit
                 that includes auxiliary registers and their measurement outcomes.
 
         Returns:
-            An array of probability samples from a Gibbs state only (excluding auxiliary registers).
+            An array of probability/gradients samples from a Gibbs state only (excluding auxiliary
+            registers).
 
         Raises:
             ValueError: If a provided number of qubits for an ansatz is not even.
         """
         kept_num_qubits = self.ansatz.num_qubits - len(self.aux_registers)
+        num_bitstrings = pow(2, kept_num_qubits)
+        reduced_qubits_values = np.zeros(num_bitstrings)
 
-        amplitudes = amplitudes_with_aux_regs.data
-        amplitudes_qubit_labels_ints = amplitudes_with_aux_regs.indices
-        reduced_qubits_amplitudes = np.zeros(pow(2, kept_num_qubits))
-
-        for qubit_label_int, amplitude in zip(amplitudes_qubit_labels_ints, amplitudes):
+        for qubit_label_int, value in enumerate(sampled_values):
             reduced_label = self._reduce_label(qubit_label_int)
-            reduced_qubits_amplitudes[reduced_label] += np.conj(amplitude) * amplitude
+            reduced_qubits_values[reduced_label] += value
 
-        return reduced_qubits_amplitudes
+        return reduced_qubits_values
 
     def _reduce_label(self, label: int) -> int:
         """Accepts an integer label that represents a measurement outcome and discards auxiliary
@@ -171,18 +172,18 @@ class GibbsStateSampler:
         return reduced_label
 
     def _discard_aux_registers_gradients(
-        self, amplitudes_with_aux_regs: NDArray[complex | float]
-    ) -> NDArray[NDArray[complex | float]]:
+        self, sampled_gradients: list[dict[int, complex]]
+    ) -> NDArray[NDArray[float]]:
         """
-        Accepts an object with complex amplitude gradients sampled from a state with auxiliary
+        Accepts an object with gradients sampled from a state with auxiliary
         registers and processes bit strings of qubit labels. For the default choice of an
-        ansatz in the GibbsStateBuilder, this method gets rid of the second half of qubits that
-        correspond to an auxiliary system. Then, it aggregates complex amplitudes gradients and
-        returns the vector of probability gradients. Indices of returned probability gradients
+        ansatz in the ``GibbsStateBuilder``, this method gets rid of the second half of qubits that
+        correspond to an auxiliary system. Then, it aggregates results and
+        returns the vector of gradients. Indices of returned probability gradients
         vector correspond to labels of a reduced qubit state.
 
         Args:
-            amplitudes_with_aux_regs: An array of amplitudes gradients sampled and calculated from
+            sampled_gradients: An array of gradients sampled and calculated from
                 a Gibbs state circuit that includes auxiliary registers and their measurement
                 outcomes.
 
@@ -190,9 +191,9 @@ class GibbsStateSampler:
             An array of probability gradients from a Gibbs state only (excluding auxiliary
             registers).
         """
-        reduced_qubits_amplitudes = np.zeros(len(amplitudes_with_aux_regs), dtype=object)
-        for ind, amplitude_data in enumerate(amplitudes_with_aux_regs):
-            res = self._discard_aux_registers(amplitude_data)
-            reduced_qubits_amplitudes[ind] = res
+        reduced_gradients = np.zeros(len(sampled_gradients), dtype=object)
+        for ind, gradients in enumerate(sampled_gradients):
+            res = self._discard_aux_registers(list(gradients.values()))
+            reduced_gradients[ind] = res
 
-        return reduced_qubits_amplitudes
+        return reduced_gradients
