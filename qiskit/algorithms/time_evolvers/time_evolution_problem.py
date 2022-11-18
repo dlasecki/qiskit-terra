@@ -34,6 +34,9 @@ class TimeEvolutionProblem:
         initial_state (QuantumCircuit | Statevector | None): The quantum state to be evolved for
             methods like Trotterization. For variational time evolutions, where the evolution
             happens in an ansatz, this argument is not required.
+        observables (ListOrDict[BaseOperator | PauliSumOp] | None): Optional list of auxiliary
+            operators to be evaluated with the evolved ``initial_state`` and their expectation
+            values returned.
         aux_operators (ListOrDict[BaseOperator | PauliSumOp] | None): Optional list of auxiliary
             operators to be evaluated with the evolved ``initial_state`` and their expectation
             values returned.
@@ -51,7 +54,8 @@ class TimeEvolutionProblem:
         hamiltonian: BaseOperator | PauliSumOp,
         time: float,
         initial_state: QuantumCircuit | Statevector | None = None,
-        aux_operators: ListOrDict[BaseOperator | PauliSumOp] | None = None,
+        observables: ListOrDict[BaseOperator | PauliSumOp] | None = None,
+        aux_operators: ListOrDict[BaseOperator | PauliSumOp] | None = None,  # TODO deprecate
         truncation_threshold: float = 1e-12,
         t_param: Parameter | None = None,
         param_value_map: Mapping[Parameter, complex] | None = None,
@@ -63,8 +67,11 @@ class TimeEvolutionProblem:
             initial_state: The quantum state to be evolved for methods like Trotterization.
                 For variational time evolutions, where the evolution happens in an ansatz,
                 this argument is not required.
+            observables (ListOrDict[BaseOperator | PauliSumOp] | None): Optional list of auxiliary
+                operators to be evaluated with the evolved ``initial_state`` and their expectation
+                values returned.
             aux_operators: Optional list of auxiliary operators to be evaluated with the
-                evolved ``initial_state`` and their expectation values returned.
+                evolved ``initial_state`` and their expectation values returned.  # TODO deprecate
             truncation_threshold: Defines a threshold under which values can be assumed to be 0.
                 Used when ``aux_operators`` is provided.
             t_param: Time parameter in case of a time-dependent Hamiltonian. This
@@ -85,7 +92,8 @@ class TimeEvolutionProblem:
             circuit.prepare_state(initial_state.data)
             initial_state = circuit
         self.initial_state = initial_state
-        self.aux_operators = aux_operators
+        self.observables = observables
+        self.aux_operators = aux_operators  # TODO deprecate
         self.truncation_threshold = truncation_threshold
 
     @property

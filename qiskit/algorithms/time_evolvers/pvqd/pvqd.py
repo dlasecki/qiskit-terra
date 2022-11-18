@@ -102,7 +102,7 @@ class PVQD(RealTimeEvolver):
 
             # specify the evolution problem
             problem = EvolutionProblem(
-                hamiltonian, time, aux_operators=[hamiltonian, observable]
+                hamiltonian, time, observables_operators=[hamiltonian, observable]
             )
 
             # and evolve!
@@ -134,8 +134,8 @@ class PVQD(RealTimeEvolver):
                 time evolved quantum state.
             initial_parameters: The initial parameters for the ansatz. Together with the ansatz,
                 these define the initial state of the time evolution.
-            estimator: An estimator primitive used for calculating expected values of auxiliary
-                operators (if provided via the problem).
+            estimator: An estimator primitive used for calculating expected values of observables
+                (if provided via the problem).
             optimizer: The classical optimizers used to minimize the overlap between
                 Trotterization and ansatz. Can be either a :class:`.Optimizer` or a callable
                 using the :class:`.Minimizer` protocol. This argument is optional since it is
@@ -336,14 +336,15 @@ class PVQD(RealTimeEvolver):
             A result object containing the evolution information and evaluated observables.
 
         Raises:
-            ValueError: If ``aux_operators`` provided in the time evolution problem but no estimator
+            ValueError: If ``observables`` provided in the time evolution problem but no estimator
                 provided to the algorithm.
+            ValueError: If ``aux_operators`` provided in the time evolution problem but no estimator
+                provided to the algorithm.  # TODO deprecate
             NotImplementedError: If the evolution problem contains an initial state.
         """
         self._validate_setup()
 
         time = evolution_problem.time
-        observables = evolution_problem.aux_operators
         hamiltonian = evolution_problem.hamiltonian
 
         # determine the number of timesteps and set the timestep
@@ -358,15 +359,28 @@ class PVQD(RealTimeEvolver):
             )
 
         # get the function to evaluate the observables for a given set of ansatz parameters
-        if observables is not None:
+        if evolution_problem.observables is not None:
             if self.estimator is None:
                 raise ValueError(
-                    "The evolution problem contained aux_operators but no estimator was provided. "
+                    "The evolution problem contained observables but no estimator was provided. "
                 )
             evaluate_observables = _get_observable_evaluator(
-                self.ansatz, observables, self.estimator
+                self.ansatz, evolution_problem.observables, self.estimator
             )
             observable_values = [evaluate_observables(self.initial_parameters)]
+
+        # TODO deprecate
+        # get the function to evaluate the observables for a given set of ansatz parameters
+        if evolution_problem.aux_operators is not None:
+            if self.estimator is None:
+                raise ValueError(
+                    "The evolution problem contained aux_operators but no estimator was "
+                    "provided. "
+                )
+            evaluate_observables = _get_observable_evaluator(
+                self.ansatz, evolution_problem.aux_operators, self.estimator
+            )
+            aux_ops_values = [evaluate_observables(self.initial_parameters)]
 
         fidelities = [1]
         parameters = [self.initial_parameters]
@@ -385,8 +399,12 @@ class PVQD(RealTimeEvolver):
 
             parameters.append(next_parameters)
             fidelities.append(fidelity)
-            if observables is not None:
+            if evolution_problem.observables is not None:
                 observable_values.append(evaluate_observables(next_parameters))
+
+            # TODO deprecate
+            if evolution_problem.aux_operators is not None:
+                aux_ops_values.append(evaluate_observables(next_parameters))
 
         evolved_state = self.ansatz.bind_parameters(parameters[-1])
 
@@ -397,9 +415,14 @@ class PVQD(RealTimeEvolver):
             fidelities=fidelities,
             estimated_error=1 - np.prod(fidelities),
         )
-        if observables is not None:
+        if evolution_problem.observables is not None:
             result.observables = observable_values
-            result.aux_ops_evaluated = observable_values[-1]
+            result.observables_evaluated = observable_values[-1]
+
+        # TODO deprecate
+        if evolution_problem.aux_operators is not None:
+            result.observables = aux_ops_values
+            result.aux_ops_evaluated = aux_ops_values[-1]
 
         return result
 

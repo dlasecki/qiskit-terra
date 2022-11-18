@@ -24,23 +24,31 @@ class TimeEvolutionResult(AlgorithmResult):
 
     Attributes:
         evolved_state (QuantumCircuit): An evolved quantum state.
-        aux_ops_evaluated (ListOrDict[tuple[complex, complex]] | None): Optional list of
+        observables_evaluated (ListOrDict[tuple[complex, complex]] | None): Optional list of
             observables for which expected values on an evolved state are calculated. These values
             are in fact tuples formatted as (mean, standard deviation).
+        aux_ops_evaluated (ListOrDict[tuple[complex, complex]] | None): Optional list of
+            observables for which expected values on an evolved state are calculated. These values
+            are in fact tuples formatted as (mean, standard deviation).  # TODO deprecate
     """
 
     def __init__(
         self,
         evolved_state: QuantumCircuit,
-        aux_ops_evaluated: ListOrDict[tuple[complex, complex]] | None = None,
+        observables_evaluated: ListOrDict[tuple[complex, complex]] | None = None,
+        aux_ops_evaluated: ListOrDict[tuple[complex, complex]] | None = None,  # TODO deprecate
     ):
         """
         Args:
             evolved_state: An evolved quantum state.
+            observables_evaluated: Optional list of observables for which expected values on an
+                evolved state are calculated. These values are in fact tuples formatted as (mean,
+                standard deviation).
             aux_ops_evaluated: Optional list of observables for which expected values on an evolved
                 state are calculated. These values are in fact tuples formatted as (mean, standard
-                deviation).
+                deviation).  # TODO deprecate
         """
 
         self.evolved_state = evolved_state
-        self.aux_ops_evaluated = aux_ops_evaluated
+        self.observables_evaluated = observables_evaluated
+        self.aux_ops_evaluated = aux_ops_evaluated  # TODO deprecate

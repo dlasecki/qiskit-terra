@@ -61,7 +61,7 @@ class TrotterQRTE(RealTimeEvolver):
             product_formula: A Lie-Trotter-Suzuki product formula. If ``None`` provided, the
                 Lie-Trotter first order product formula with a single repetition is used.
             estimator: An estimator primitive used for calculating expectation values of
-                ``TimeEvolutionProblem.aux_operators``.
+                ``TimeEvolutionProblem.observables``.
         """
 
         self.product_formula = product_formula
@@ -94,6 +94,7 @@ class TrotterQRTE(RealTimeEvolver):
         """
         self._estimator = estimator
 
+    # TODO deprecate
     @classmethod
     def supports_aux_operators(cls) -> bool:
         """
@@ -105,11 +106,22 @@ class TrotterQRTE(RealTimeEvolver):
         """
         return True
 
+    @classmethod
+    def supports_observables(cls) -> bool:
+        """
+        Whether computing the expectation value of observables is supported.
+
+        Returns:
+            ``True`` if ``observables`` expectations in the ``TimeEvolutionProblem`` can be
+            evaluated, ``False`` otherwise.
+        """
+        return True
+
     def evolve(self, evolution_problem: TimeEvolutionProblem) -> TimeEvolutionResult:
         """
         Evolves a quantum state for a given time using the Trotterization method
         based on a product formula provided. The result is provided in the form of a quantum
-        circuit. If auxiliary operators are included in the ``evolution_problem``, they are
+        circuit. If observables are included in the ``evolution_problem``, they are
         evaluated on an evolved state using an estimator primitive provided.
 
         .. note::
@@ -121,13 +133,15 @@ class TrotterQRTE(RealTimeEvolver):
 
         Returns:
             Evolution result that includes an evolved state as a quantum circuit and, optionally,
-            auxiliary operators evaluated for a resulting state on an estimator primitive.
+            observables evaluated for a resulting state on an estimator primitive.
 
         Raises:
             ValueError: If ``t_param`` is not set to ``None`` in the ``TimeEvolutionProblem``
                 (feature not currently supported).
-            ValueError: If ``aux_operators`` provided in the time evolution problem but no estimator
+            ValueError: If ``observables`` provided in the time evolution problem but no estimator
                 provided to the algorithm.
+            ValueError: If ``aux_operators`` provided in the time evolution problem but no estimator
+                provided to the algorithm.  # TODO deprecate
             ValueError: If the ``initial_state`` is not provided in the ``TimeEvolutionProblem``.
             ValueError: If an unsupported Hamiltonian type is provided.
         """
@@ -138,6 +152,12 @@ class TrotterQRTE(RealTimeEvolver):
                 "``t_param`` from the ``TimeEvolutionProblem`` should be set to ``None``."
             )
 
+        if evolution_problem.observables is not None and self.estimator is None:
+            raise ValueError(
+                "The time evolution problem contained ``observables`` but no estimator was "
+                "provided. The algorithm continues without calculating these quantities. "
+            )
+        # TODO deprecate
         if evolution_problem.aux_operators is not None and self.estimator is None:
             raise ValueError(
                 "The time evolution problem contained ``aux_operators`` but no estimator was "
@@ -162,6 +182,7 @@ class TrotterQRTE(RealTimeEvolver):
         else:
             raise ValueError("``initial_state`` must be provided in the ``TimeEvolutionProblem``.")
 
+        # TODO deprecate
         evaluated_aux_ops = None
         if evolution_problem.aux_operators is not None:
             evaluated_aux_ops = estimate_observables(
@@ -172,4 +193,14 @@ class TrotterQRTE(RealTimeEvolver):
                 evolution_problem.truncation_threshold,
             )
 
-        return TimeEvolutionResult(evolved_state, evaluated_aux_ops)
+        evaluated_observables = None
+        if evolution_problem.observables is not None:
+            evaluated_observables = estimate_observables(
+                self.estimator,
+                evolved_state,
+                evolution_problem.observables,
+                None,
+                evolution_problem.truncation_threshold,
+            )
+
+        return TimeEvolutionResult(evolved_state, evaluated_observables, evaluated_aux_ops)

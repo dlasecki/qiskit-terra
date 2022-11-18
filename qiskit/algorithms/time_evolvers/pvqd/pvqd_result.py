@@ -25,7 +25,8 @@ class PVQDResult(TimeEvolutionResult):
     def __init__(
         self,
         evolved_state: QuantumCircuit,
-        aux_ops_evaluated: list[tuple[complex, complex]] | None = None,
+        observables_evaluated: list[tuple[complex, complex]] | None = None,
+        aux_ops_evaluated: list[tuple[complex, complex]] | None = None,  # TODO deprecate
         times: list[float] | None = None,
         parameters: list[np.ndarray] | None = None,
         fidelities: list[float] | None = None,
@@ -35,9 +36,12 @@ class PVQDResult(TimeEvolutionResult):
         """
         Args:
             evolved_state: An evolved quantum state.
+            observables_evaluated: Optional list of observables for which expected values on an
+                evolved state are calculated. These values are in fact tuples formatted as (mean,
+                standard deviation).
             aux_ops_evaluated: Optional list of observables for which expected values on an evolved
                 state are calculated. These values are in fact tuples formatted as (mean, standard
-                deviation).
+                deviation).  # TODO deprecate
             times: The times evaluated during the time integration.
             parameters: The parameter values at each evaluation time.
             fidelities: The fidelity of the Trotter step and variational update at each iteration.
@@ -45,7 +49,7 @@ class PVQDResult(TimeEvolutionResult):
                 product of all fidelities.
             observables: The value of the observables evaluated at each iteration.
         """
-        super().__init__(evolved_state, aux_ops_evaluated)
+        super().__init__(evolved_state, observables_evaluated, aux_ops_evaluated)
         self.times = times
         self.parameters = parameters
         self.fidelities = fidelities
